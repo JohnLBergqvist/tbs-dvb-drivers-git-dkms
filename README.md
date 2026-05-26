@@ -12,11 +12,27 @@ ships only the bits TBS adds on top of the mainline Linux kernel.
 ## Repo layout
 
 ```
-sync-upstream.sh   # Pulls TBS-added driver source from upstream into src/
-src/               # Driver source (populated by sync-upstream.sh)
-patches/           # Out-of-tree compatibility patches (empty until populated)
-LICENSE            # GPL-2.0
+sync-upstream.sh    # Pulls TBS-added driver source from upstream into src/
+Makefile            # Top-level wrapper: applies patches/, then builds modules
+dkms.conf           # DKMS config; module list auto-regenerated from src/Kbuild
+src/                # Driver source (populated by sync-upstream.sh)
+  frontend_extra.h  # Hand-written compat header (DVB-S2X enum values, TBS ioctls)
+  Kbuild            # Auto-generated module list
+patches/            # Out-of-tree compatibility patches
+.gitattributes      # Preserve upstream line endings on src/
+LICENSE             # GPL-2.0
 ```
+
+## Building
+
+```
+make                  # apply patches, build modules
+make clean            # revert patches, clean build artifacts
+make modules_install  # install built .ko files (usually called by DKMS)
+```
+
+`make` looks for kernel headers at `/lib/modules/$(uname -r)/build`;
+override with `make KERNELDIR=/path/to/kernel-headers`.
 
 ## Syncing from upstream
 
@@ -28,8 +44,14 @@ LICENSE            # GPL-2.0
 The script auto-detects which mainline kernel TBS forked from (by
 matching their Makefile's VERSION/PATCHLEVEL/SUBLEVEL/EXTRAVERSION
 against ancestors), then `git diff`'s vanilla → TBS to discover which
-files to sync. Adds `src/Kbuild` (auto-generated) listing the modules
-to build. Stages the result for review; never commits.
+files to sync. Regenerates `src/Kbuild` and the module-list section of
+`dkms.conf`. Stages for review; never commits.
+
+## Supported kernels
+
+Speculatively `^[67]\.` — primary deploy target is `linux-lts` (6.18+).
+Set in `dkms.conf` via `BUILD_EXCLUSIVE_KERNEL_VERSION`; tighten the
+regex to fail-fast on unsupported kernels.
 
 ## License
 

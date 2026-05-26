@@ -1,0 +1,6 @@
+# Treat everything under src/ as bytes — do not normalize line endings.
+# src/ is a pristine snapshot of upstream tbsdtv/linux_media; some files
+# (notably tbsci.c, tbsecp3-ci.c) have CRLF endings from the original
+# authors. Preserving them keeps src/ byte-identical to upstream so we
+# can cleanly diff against it.
+src/** -text
