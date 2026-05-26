@@ -41,14 +41,23 @@ override with `make KERNELDIR=/path/to/kernel-headers`.
 
 ## Modules built
 
-Currently 26 modules covering TBS-added drivers:
+Currently 38 modules covering:
 
 - **Bridge drivers**: `tbsecp3` (ECP3 PCI bridge), `saa716x_*` (legacy bridge for non-ECP3 cards)
-- **Demodulators**: `tas2101`, `tas2971`, `m88rs6060`, `mxl58x`, `si2183`, `mn88436`, `mtv23x`, `gx1133`, `gx1503`, `cxd2878`, `stv091x`, `stid135`, `isl6422`, `avl6882`, `tbs_priv`
-- **Tuners**: `av201x`, `mxl603`, `rda5816`, `r850`, `r848`, `stv6120`, `tda18273`
+- **Demodulators**: `tas2101`, `tas2971`, `m88rs6060`, `mxl58x`, `si2168`, `si2183`, `mn88436`, `mtv23x`, `gx1133`, `gx1503`, `cxd2878`, `stv091x`, `stid135`, `cx24117`, `mb86a16`, `stv090x`, `stb6100`, `tda1004x`, `zl10353`, `isl6422/3`, `avl6882`, `tbs_priv`
+- **Tuners**: `av201x`, `mxl603`, `rda5816`, `r850`, `r848`, `si2157`, `stv6120`, `tda18212`, `tda18273`
 - **Misc**: `tbs_pcie-ci` (CAM), `tbs_pcie-mod` (modulator)
 
 The list is regenerated from `src/Kbuild` on each upstream sync.
+
+## TBS-modified mainline drivers
+
+For some drivers (`cx24117`, `tda18212`, `stv090x`, `mb86a16`, `stb6100`,
+`isl6423`, `stv6110x`, `si2168`, `si2157`, `tda1004x`, `zl10353`,
+`cxd2820r`), TBS extended the mainline driver with extra struct fields
+that their bridge drivers depend on. We ship TBS-modified versions of
+these as full modules; DKMS installs them to `/extra/dkms/`, overriding
+the kernel's vanilla copies at module-load time.
 
 ## Syncing from upstream
 
