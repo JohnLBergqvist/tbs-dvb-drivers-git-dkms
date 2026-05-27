@@ -117,9 +117,9 @@ apply. Stages for review; never commits.
 
 ## Supported kernels
 
-Speculatively `^[67]\.` — primary deploy target is `linux-lts` (6.18+).
-Set in `dkms.conf` via `BUILD_EXCLUSIVE_KERNEL_VERSION`; tighten the
-regex to fail-fast on unsupported kernels.
+`^[67]\.` — verified on 6.x and 7.x. Set in `dkms.conf` via
+`BUILD_EXCLUSIVE_KERNEL_VERSION`; tighten the regex to fail-fast on
+unsupported kernels.
 
 ## License
 
