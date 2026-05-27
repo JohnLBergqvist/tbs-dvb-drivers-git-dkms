@@ -1,0 +1,73 @@
+Subject: [PATCH] Stub out DTV_MODCODE usage
+
+TBS adds a `modcode` field to struct dtv_frontend_properties (and a
+MODCODE_ALL define) in their kernel fork to support DVB-S2 multistream
+modulation-code filtering. Neither exists in mainline:
+
+    error: 'struct dtv_frontend_properties' has no member named 'modcode'
+    error: 'MODCODE_ALL' undeclared
+
+Wrap the affected code paths in #ifdef DTV_MODCODE so they compile out
+when DTV_MODCODE isn't defined. Affects 3 files:
+  - drivers/media/dvb-frontends/gx1133.c (MODCODE filter block)
+  - drivers/media/dvb-frontends/stv091x.c (SetModcode call)
+  - drivers/media/dvb-frontends/stid135/stid135-fe.c (filter setup block)
+
+DVB-S2 transponders without per-modcode filtering still tune fine —
+the chip reports any signal it can lock; the filter is an advanced
+narrowing feature rarely needed for normal reception.
+---
+diff --git a/drivers/media/dvb-frontends/gx1133.c b/drivers/media/dvb-frontends/gx1133.c
+index 6d616de..69bd985 100644
+--- a/drivers/media/dvb-frontends/gx1133.c
++++ b/drivers/media/dvb-frontends/gx1133.c
+@@ -1570,6 +1570,7 @@ static int gx1133_set_frontend(struct dvb_frontend *fe)
+ 				gx1133_wr(priv,DVB_S2,GX1133_LDPC_TSID_CTRL,temp);
+ 				gx1133_wr(priv,DVB_S2,GX1133_LDPC_TSID_CFG,isi);
+ 
++#ifdef DTV_MODCODE
+ 				/* Setup MODCODE filtering */
+ 				gx1133_rd(priv,DVB_S2,GX1133_LDPC_PLS_CTRL,&temp);
+ 				if (c->modcode == MODCODE_ALL)
+@@ -1586,6 +1587,7 @@ static int gx1133_set_frontend(struct dvb_frontend *fe)
+ 					temp = (1<<7) | (i<<1) | 1 ;
+ 				}
+ 				gx1133_wr(priv,DVB_S2,GX1133_LDPC_PLS_CTRL,temp);
++#endif /* DTV_MODCODE */
+ 			}
+ 			return 0;
+ 		}
+diff --git a/drivers/media/dvb-frontends/stid135/stid135-fe.c b/drivers/media/dvb-frontends/stid135/stid135-fe.c
+index 161ec94..fdf9f54 100644
+--- a/drivers/media/dvb-frontends/stid135/stid135-fe.c
++++ b/drivers/media/dvb-frontends/stid135/stid135-fe.c
+@@ -450,6 +450,7 @@ static int stid135_set_parameters(struct dvb_frontend *fe)
+ 	}
+ 
+ 	/* Set modcode after search */
++#ifdef DTV_MODCODE
+ 	if (p->modcode != MODCODE_ALL) {
+         m = p->modcode;
+         j = 0;
+@@ -479,6 +480,7 @@ static int stid135_set_parameters(struct dvb_frontend *fe)
+         if (err != FE_LLA_NO_ERROR)
+             dev_err(&state->base->i2c->dev, "%s: fe_stid135_set_modcodes_filter error %d !\n", __func__, err);
+ 	}
++#endif /* DTV_MODCODE */
+ 
+ 	/* Set ISI after search */
+ 	if (p->stream_id != NO_STREAM_ID_FILTER) {
+diff --git a/drivers/media/dvb-frontends/stv091x.c b/drivers/media/dvb-frontends/stv091x.c
+index 54f0344..d9c7d6f 100644
+--- a/drivers/media/dvb-frontends/stv091x.c
++++ b/drivers/media/dvb-frontends/stv091x.c
+@@ -1012,7 +1012,9 @@ static int Start(struct stv *state, struct dtv_frontend_properties *p)
+ 	if (p->scrambling_sequence_index)
+ 		SetPLS(state, 1, p->scrambling_sequence_index);
+ 
++#ifdef DTV_MODCODE
+ 	SetModcode(state, p->modcode);
++#endif
+ 
+ 	/* Set the Init Symbol rate*/
+ 	symb = MulDiv32(p->symbol_rate, 65536, state->base->mclk);

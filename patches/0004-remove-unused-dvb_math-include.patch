@@ -1,0 +1,26 @@
+Subject: [PATCH] Remove unused #include <media/dvb_math.h>
+
+m88rs6060.c includes <media/dvb_math.h> but doesn't use anything from
+it (no calls to intlog2(), intlog10(), etc.). The header was removed
+from the mainline kernel some time ago, so out-of-tree builds against
+modern kernels fail with:
+
+    fatal error: media/dvb_math.h: No such file or directory
+
+Drop the include. The driver is unaffected — the include was a stale
+leftover from earlier code.
+
+Affects 1 file: m88rs6060.c.
+---
+diff --git a/drivers/media/dvb-frontends/m88rs6060.c b/drivers/media/dvb-frontends/m88rs6060.c
+index 4525f75..f23ae87 100644
+--- a/drivers/media/dvb-frontends/m88rs6060.c
++++ b/drivers/media/dvb-frontends/m88rs6060.c
+@@ -5,7 +5,6 @@
+  * Copyright (c) 2021 Davin zhang <Davin@tbsdtv.com> www.Turbosight.com
+  *
+ */
+-#include <media/dvb_math.h>
+ 
+ #include "m88rs6060_priv.h"
+ #include <linux/mutex.h>

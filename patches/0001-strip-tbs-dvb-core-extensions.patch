@@ -1,0 +1,684 @@
+Subject: [PATCH] Strip TBS dvb-core extensions
+
+TBS extends struct dvb_frontend_ops with several callbacks in their own
+kernel fork that don't exist in mainline:
+
+  - .spi_read / .spi_write       raw FPGA register access
+  - .eeprom_read / .eeprom_write    EEPROM access
+  - .mcu_read / .mcu_write       MCU register access
+  - .reg_i2cread / .reg_i2cwrite    raw I²C access
+  - .read_temp                   chip temperature
+  - .set_property                custom DTV property setters
+
+Out-of-tree builds against mainline headers fail with:
+
+    error: 'struct dvb_frontend_ops' has no member named 'spi_read'
+    error: invalid use of undefined type 'struct ecp3_info'
+
+Some of these (.spi_read, .spi_write, .eeprom_*, .mcu_*, .reg_i2c*)
+also use TBS-specific argument struct types (struct ecp3_info, struct
+eeprom_info, struct mcu24cxx_info, struct usbi2c_access) that aren't
+in mainline either.
+
+This patch:
+  - Comments out all such callback assignments in dvb_frontend_ops
+    initialisers across affected files.
+  - Wraps the corresponding function definitions whose signatures
+    reference TBS-only struct types in #if 0 ... #endif so they're
+    not compiled. Handles both single-line and multi-line signatures.
+  - Leaves .read_temp / .set_property function definitions intact
+    (their signatures use mainline-compatible types), only commenting
+    out the struct field assignments since the fields don't exist in
+    mainline dvb_frontend_ops.
+
+These callbacks expose raw FPGA-register / EEPROM access via custom
+ioctls used by TBS-aware userspace tools — none are needed for normal
+DVB tuning operation.
+---
+diff --git a/drivers/media/dvb-frontends/avl6882.c b/drivers/media/dvb-frontends/avl6882.c
+index e58e290..135ab8f 100644
+--- a/drivers/media/dvb-frontends/avl6882.c
++++ b/drivers/media/dvb-frontends/avl6882.c
+@@ -1392,7 +1392,7 @@ static struct dvb_frontend_ops avl6882_ops = {
+ 	.get_frontend_algo		= avl6882fe_algo,
+ 	.tune				= avl6882_tune,
+ 
+-	.set_property			= avl6882_set_property,
++	// .set_property			= avl6882_set_property,
+ 	.set_frontend			= avl6882_set_frontend,
+ 	.get_frontend = avl6882_get_frontend,
+ };
+diff --git a/drivers/media/dvb-frontends/cxd2878.c b/drivers/media/dvb-frontends/cxd2878.c
+index c432fe5..22547d7 100644
+--- a/drivers/media/dvb-frontends/cxd2878.c
++++ b/drivers/media/dvb-frontends/cxd2878.c
+@@ -3884,6 +3884,7 @@ static int cxd2878_read_ucblocks(struct dvb_frontend *fe,u32 *ucblocks)
+ 
+ 	return 0;
+ }
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void cxd2878_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 
+@@ -3895,7 +3896,9 @@ static void cxd2878_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void cxd2878_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 
+@@ -3906,6 +3909,8 @@ static void cxd2878_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 		dev->base->config->write_properties(dev->base->i2c,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void cxd2878_eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ {
+ 	struct cxd2878_dev *dev = fe->demodulator_priv;
+@@ -3914,7 +3919,9 @@ static void cxd2878_eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eep
+ 		dev->base->config->read_eeprom(dev->base->i2c,eepinf->reg, &(eepinf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void cxd2878_eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ {
+ 	struct cxd2878_dev *dev = fe->demodulator_priv;
+@@ -3924,6 +3931,7 @@ static void cxd2878_eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eep
+ 
+ 	return ;
+ }
++#endif
+ static void cxd2878_release (struct dvb_frontend*fe)
+ {
+ 	struct cxd2878_dev *dev = fe->demodulator_priv;
+@@ -3977,12 +3985,12 @@ static const struct dvb_frontend_ops cxd2878_ops = {
+ 			.read_snr				= cxd2878_read_snr,
+ 			.read_ucblocks			= cxd2878_read_ucblocks,
+ 
+-			.set_property			= cxd2878_set_property,
++			// .set_property			= cxd2878_set_property,
+ 			
+-			.spi_read				= cxd2878_spi_read,
+-			.spi_write				= cxd2878_spi_write,
+-			.eeprom_read		= cxd2878_eeprom_read,
+-			.eeprom_write		= cxd2878_eeprom_write,
++			// .spi_read				= cxd2878_spi_read,
++			// .spi_write				= cxd2878_spi_write,
++			// .eeprom_read		= cxd2878_eeprom_read,
++			// .eeprom_write		= cxd2878_eeprom_write,
+ };
+ 
+ static struct cxd_base *match_base(struct i2c_adapter *i2c,u8 adr)
+diff --git a/drivers/media/dvb-frontends/gx1133.c b/drivers/media/dvb-frontends/gx1133.c
+index 6d616de..f3b0eb6 100644
+--- a/drivers/media/dvb-frontends/gx1133.c
++++ b/drivers/media/dvb-frontends/gx1133.c
+@@ -505,6 +505,7 @@ static int gx1133_read_status(struct dvb_frontend *fe, enum fe_status *status)
+ 	return ret;
+ }
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void gx1133_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 
+@@ -514,6 +515,8 @@ static void gx1133_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 		priv->cfg->read_properties(adapter,ecp3inf->reg, &(ecp3inf->data));
+ 	return;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void gx1133_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct gx1133_priv *priv = fe->demodulator_priv;
+@@ -522,6 +525,7 @@ static void gx1133_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 		priv->cfg->write_properties(adapter,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
+ 
+ static int gx1133_set_voltage(struct dvb_frontend *fe,
+ 	enum fe_sec_voltage voltage)
+@@ -1712,8 +1716,8 @@ static struct dvb_frontend_ops gx1133_ops = {
+ 	.set_frontend = gx1133_set_frontend,
+ 	.get_frontend = gx1133_get_frontend,
+ 
+-	.spi_read			= gx1133_spi_read,
+-	.spi_write			= gx1133_spi_write,
++	// .spi_read			= gx1133_spi_read,
++	// .spi_write			= gx1133_spi_write,
+ 
+ 
+ };
+diff --git a/drivers/media/dvb-frontends/m88rs6060.c b/drivers/media/dvb-frontends/m88rs6060.c
+index 4525f75..a3e7531 100644
+--- a/drivers/media/dvb-frontends/m88rs6060.c
++++ b/drivers/media/dvb-frontends/m88rs6060.c
+@@ -3266,6 +3266,7 @@ static int m88rs6060_get_frontend(struct dvb_frontend *fe, struct dtv_frontend_p
+ 
+  return 0;
+ }
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void m88rs6060_spi_read(struct dvb_frontend *fe,
+ 			       struct ecp3_info *ecp3inf)
+ {
+@@ -3279,7 +3280,9 @@ static void m88rs6060_spi_read(struct dvb_frontend *fe,
+ 
+ 	return;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void m88rs6060_spi_write(struct dvb_frontend *fe,
+ 				struct ecp3_info *ecp3inf)
+ {
+@@ -3292,7 +3295,9 @@ static void m88rs6060_spi_write(struct dvb_frontend *fe,
+ 				      ecp3inf->data);
+ 	return;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void m88rs6060_eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ {
+ 	struct i2c_client *client = fe->demodulator_priv;
+@@ -3304,7 +3309,9 @@ static void m88rs6060_eeprom_read(struct dvb_frontend *fe, struct eeprom_info *e
+ 				      &(eepinf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void m88rs6060_eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ {
+ 	struct i2c_client *client = fe->demodulator_priv;
+@@ -3316,6 +3323,7 @@ static void m88rs6060_eeprom_write(struct dvb_frontend *fe,struct eeprom_info *e
+ 				      eepinf->data);
+ 	return ;
+ }
++#endif
+ 
+ static const struct dvb_frontend_ops m88rs6060_ops = {
+ 	.delsys = {SYS_DVBS, SYS_DVBS2},
+@@ -3349,10 +3357,10 @@ static const struct dvb_frontend_ops m88rs6060_ops = {
+ 	.set_tone = m88rs6060_set_tone,
+ 	.diseqc_send_burst = m88rs6060_diseqc_send_burst,
+ 	.diseqc_send_master_cmd = m88rs6060_diseqc_send_master_cmd,
+-	.spi_read = m88rs6060_spi_read,
+-	.spi_write = m88rs6060_spi_write,
+-	.eeprom_read = m88rs6060_eeprom_read,
+-	.eeprom_write = m88rs6060_eeprom_write,
++	// .spi_read = m88rs6060_spi_read,
++	// .spi_write = m88rs6060_spi_write,
++	// .eeprom_read = m88rs6060_eeprom_read,
++	// .eeprom_write = m88rs6060_eeprom_write,
+ 
+ };
+ static int m88rs6060_ready(struct m88rs6060_dev *dev)
+diff --git a/drivers/media/dvb-frontends/mxl58x.c b/drivers/media/dvb-frontends/mxl58x.c
+index fed7c1f..3453bb7 100644
+--- a/drivers/media/dvb-frontends/mxl58x.c
++++ b/drivers/media/dvb-frontends/mxl58x.c
+@@ -808,6 +808,7 @@ static int set_tone(struct dvb_frontend *fe, enum fe_sec_tone_mode tone)
+ 	return 0;
+ }
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 	struct mxl *state = fe->demodulator_priv;
+@@ -817,7 +818,9 @@ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 		state->base->read_properties(adapter,ecp3inf->reg, &(ecp3inf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct mxl *state = fe->demodulator_priv;
+@@ -827,7 +830,9 @@ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 		state->base->write_properties(adapter,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ {
+ 	struct mxl *state = fe->demodulator_priv;
+@@ -837,7 +842,9 @@ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ 		state->base->read_eeprom(adapter,eepinf->reg, &(eepinf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ {
+ 	struct mxl *state = fe->demodulator_priv;
+@@ -847,6 +854,7 @@ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ 		state->base->write_eeprom(adapter,eepinf->reg, eepinf->data);
+ 	return ;
+ }
++#endif
+ 
+ static int read_temp(struct dvb_frontend *fe, s16 *temp)
+ {
+@@ -891,11 +899,11 @@ static struct dvb_frontend_ops mxl_ops = {
+ 	.set_tone			= set_tone,
+ 	.set_voltage			= set_voltage,
+ 
+-	.spi_read			= spi_read,
+-	.spi_write			= spi_write,
+-	.eeprom_read		= eeprom_read,
+-	.eeprom_write		= eeprom_write,
+-	.read_temp			= read_temp,
++	// .spi_read			= spi_read,
++	// .spi_write			= spi_write,
++	// .eeprom_read		= eeprom_read,
++	// .eeprom_write		= eeprom_write,
++	// .read_temp			= read_temp,
+ };
+ 
+ static struct mxl_base *match_base(struct i2c_adapter *i2c, u8 adr)
+diff --git a/drivers/media/dvb-frontends/si2183.c b/drivers/media/dvb-frontends/si2183.c
+index a275fe8..8e915b1 100644
+--- a/drivers/media/dvb-frontends/si2183.c
++++ b/drivers/media/dvb-frontends/si2183.c
+@@ -1584,6 +1584,7 @@ err:
+ 	return ret;
+ }
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 	struct i2c_client *client = fe->demodulator_priv;
+@@ -1595,7 +1596,9 @@ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct i2c_client *client = fe->demodulator_priv;
+@@ -1605,7 +1608,9 @@ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 		dev->write_properties(client->adapter,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ {
+ 	struct i2c_client *client = fe->demodulator_priv;
+@@ -1615,7 +1620,9 @@ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ 		dev->read_eeprom(client->adapter,eepinf->reg, &(eepinf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ {
+ 	struct i2c_client *client = fe->demodulator_priv;
+@@ -1625,6 +1632,7 @@ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ 		dev->write_eeprom(client->adapter,eepinf->reg, eepinf->data);
+ 	return ;
+ }
++#endif
+ 
+ static const struct dvb_frontend_ops si2183_ops = {
+ 	.delsys = {SYS_DVBT, SYS_DVBT2,
+@@ -1672,7 +1680,7 @@ static const struct dvb_frontend_ops si2183_ops = {
+ 	.get_frontend_algo = si2183_get_algo,
+ 	.tune = si2183_tune,
+ 
+-	.set_property		= si2183_set_property,
++	// .set_property		= si2183_set_property,
+ 
+ 	.set_tone			= si2183_set_tone,
+ 	.diseqc_send_burst	= si2183_diseqc_send_burst,
+@@ -1681,10 +1689,10 @@ static const struct dvb_frontend_ops si2183_ops = {
+ 	.i2c_gate_ctrl		= i2c_gate_ctrl,
+ #endif
+ 
+-	.spi_read			= spi_read,
+-	.spi_write			= spi_write,
+-	.eeprom_read		= eeprom_read,
+-	.eeprom_write		= eeprom_write,
++	// .spi_read			= spi_read,
++	// .spi_write			= spi_write,
++	// .eeprom_read		= eeprom_read,
++	// .eeprom_write		= eeprom_write,
+ };
+ 
+ 
+diff --git a/drivers/media/dvb-frontends/stid135/stid135-fe.c b/drivers/media/dvb-frontends/stid135/stid135-fe.c
+index 161ec94..c016e2c 100644
+--- a/drivers/media/dvb-frontends/stid135/stid135-fe.c
++++ b/drivers/media/dvb-frontends/stid135/stid135-fe.c
+@@ -961,6 +961,7 @@ static int stid135_read_ucblocks(struct dvb_frontend *fe, u32 *ucblocks)
+ 	return 0;
+ }
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -970,7 +971,9 @@ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 		state->base->read_properties(adapter,ecp3inf->reg, &(ecp3inf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -980,7 +983,9 @@ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 		state->base->write_properties(adapter,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -990,7 +995,9 @@ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ 		state->base->read_eeprom(adapter,eepinf->reg, &(eepinf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -1000,6 +1007,7 @@ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ 		state->base->write_eeprom(adapter,eepinf->reg, eepinf->data);
+ 	return ;
+ }
++#endif
+ 
+ static int stid135_read_temp(struct dvb_frontend *fe, s16 *temp)
+ {
+@@ -1048,11 +1056,11 @@ static struct dvb_frontend_ops stid135_ops = {
+ 	.read_snr			= stid135_read_snr,
+ 	.read_ber			= stid135_read_ber,
+ 	.read_ucblocks			= stid135_read_ucblocks,
+-	.spi_read			= spi_read,
+-	.spi_write			= spi_write,
+-	.eeprom_read			= eeprom_read,
+-	.eeprom_write			= eeprom_write,
+-    .read_temp			= stid135_read_temp,
++	// .spi_read			= spi_read,
++	// .spi_write			= spi_write,
++	// .eeprom_read			= eeprom_read,
++	// .eeprom_write			= eeprom_write,
++    // .read_temp			= stid135_read_temp,
+ };
+ 
+ static struct stv_base *match_base(struct i2c_adapter  *i2c, u8 adr)
+diff --git a/drivers/media/dvb-frontends/stv091x.c b/drivers/media/dvb-frontends/stv091x.c
+index 54f0344..ad541fd 100644
+--- a/drivers/media/dvb-frontends/stv091x.c
++++ b/drivers/media/dvb-frontends/stv091x.c
+@@ -1637,6 +1637,7 @@ static int read_ucblocks(struct dvb_frontend *fe, u32 *ucblocks)
+ 	return 0;
+ }
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -1646,7 +1647,9 @@ static void spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 	/*pr_info("stv0910: spi_read %x=%x\n",ecp3inf->reg,ecp3inf->data);*/
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -1655,7 +1658,9 @@ static void spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 	state->base->write_properties(adapter,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -1665,7 +1670,9 @@ static void eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ 		state->base->read_eeprom(adapter,eepinf->reg, &(eepinf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ {
+ 	struct stv *state = fe->demodulator_priv;
+@@ -1675,6 +1682,7 @@ static void eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ 		state->base->write_eeprom(adapter,eepinf->reg, eepinf->data);
+ 	return ;
+ }
++#endif
+ 
+ static struct dvb_frontend_ops stv091x_ops = {
+ 	.delsys = { SYS_DVBS, SYS_DVBS2, SYS_DSS },
+@@ -1708,10 +1716,10 @@ static struct dvb_frontend_ops stv091x_ops = {
+ 	.read_snr			= read_snr,
+ 	.read_ber			= read_ber,
+ 	.read_ucblocks			= read_ucblocks,
+-	.spi_read			= spi_read,
+-	.spi_write			= spi_write,
+-	.eeprom_read			= eeprom_read,
+-	.eeprom_write			= eeprom_write,
++	// .spi_read			= spi_read,
++	// .spi_write			= spi_write,
++	// .eeprom_read			= eeprom_read,
++	// .eeprom_write			= eeprom_write,
+ };
+ 
+ static struct stv_base *match_base(struct i2c_adapter  *i2c, u8 adr)
+diff --git a/drivers/media/dvb-frontends/tas2101.c b/drivers/media/dvb-frontends/tas2101.c
+index ef2211d..32f9938 100644
+--- a/drivers/media/dvb-frontends/tas2101.c
++++ b/drivers/media/dvb-frontends/tas2101.c
+@@ -316,6 +316,7 @@ static int tas2101_read_ucblocks(struct dvb_frontend *fe, u32 *ucblocks)
+ 	return 0;
+ }
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 
+@@ -325,6 +326,8 @@ static void tas2101_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 		priv->cfg->read_properties(adapter,ecp3inf->reg, &(ecp3inf->data));
+ 	return;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct tas2101_priv *priv = fe->demodulator_priv;
+@@ -333,7 +336,9 @@ static void tas2101_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 		priv->cfg->write_properties(adapter,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eepinf)
+ {
+ 	struct tas2101_priv *priv = fe->demodulator_priv;
+@@ -343,7 +348,9 @@ static void tas2101_eeprom_read(struct dvb_frontend *fe, struct eeprom_info *eep
+ 		priv->cfg->read_eeprom(adapter,eepinf->reg, &(eepinf->data));
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eepinf)
+ {
+ 	struct tas2101_priv *priv = fe->demodulator_priv;
+@@ -353,6 +360,7 @@ static void tas2101_eeprom_write(struct dvb_frontend *fe,struct eeprom_info *eep
+ 		priv->cfg->write_eeprom(adapter,eepinf->reg, eepinf->data);
+ 	return ;
+ }
++#endif
+ 
+ static int tas2101_set_voltage(struct dvb_frontend *fe,
+ 	enum fe_sec_voltage voltage)
+@@ -944,10 +952,10 @@ static struct dvb_frontend_ops tas2101_ops = {
+ 	.set_frontend = tas2101_set_frontend,
+ 	.get_frontend = tas2101_get_frontend,
+ 
+-	.spi_read			= tas2101_spi_read,
+-	.spi_write			= tas2101_spi_write,
+-	.eeprom_read		= tas2101_eeprom_read,
+-	.eeprom_write		= tas2101_eeprom_write,
++	// .spi_read			= tas2101_spi_read,
++	// .spi_write			= tas2101_spi_write,
++	// .eeprom_read		= tas2101_eeprom_read,
++	// .eeprom_write		= tas2101_eeprom_write,
+ };
+ 
+ MODULE_DESCRIPTION("DVB Frontend module for Tmax TAS2101");
+diff --git a/drivers/media/dvb-frontends/tas2971.c b/drivers/media/dvb-frontends/tas2971.c
+index f12c5e3..e6b4624 100644
+--- a/drivers/media/dvb-frontends/tas2971.c
++++ b/drivers/media/dvb-frontends/tas2971.c
+@@ -120,6 +120,7 @@ static int tas2101_read_status(struct dvb_frontend *fe, enum fe_status *status)
+ return 0;
+ 
+ }
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 
+@@ -129,6 +130,8 @@ static void tas2101_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 		priv->cfg->read_properties(adapter,ecp3inf->reg, &(ecp3inf->data));
+ 	return;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct tas2971_priv *priv = fe->demodulator_priv;
+@@ -137,6 +140,8 @@ static void tas2101_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 		priv->cfg->write_properties(adapter,ecp3inf->reg, ecp3inf->data);
+ 	return ;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_mcu_read(struct dvb_frontend *fe, struct mcu24cxx_info *mcu24cxxinf)
+ {
+ 
+@@ -146,6 +151,8 @@ static void tas2101_mcu_read(struct dvb_frontend *fe, struct mcu24cxx_info *mcu2
+ 		priv->cfg->mcuRead_properties(adapter,mcu24cxxinf->bassaddr,mcu24cxxinf->reg, &(mcu24cxxinf->data));
+ 	return;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_mcu_write(struct dvb_frontend *fe,struct mcu24cxx_info *mcu24cxxinf)
+ {
+ 	struct tas2971_priv *priv = fe->demodulator_priv;
+@@ -154,7 +161,9 @@ static void tas2101_mcu_write(struct dvb_frontend *fe,struct mcu24cxx_info *mcu2
+ 		priv->cfg->mcuWrite_properties(adapter,mcu24cxxinf->bassaddr, mcu24cxxinf->reg, mcu24cxxinf->data);
+ 	return ;
+ }
++#endif
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_reg_i2c_read(struct dvb_frontend *fe, struct usbi2c_access *pi2cinf)
+ {
+ 
+@@ -164,6 +173,8 @@ static void tas2101_reg_i2c_read(struct dvb_frontend *fe, struct usbi2c_access *
+ 		priv->cfg->i2cRead_properties(adapter,pi2cinf->chip_addr,pi2cinf->reg, pi2cinf->num, pi2cinf->buf);
+ 	return;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tas2101_reg_i2c_write(struct dvb_frontend *fe,struct usbi2c_access *pi2cinf)
+ {
+ 	struct tas2971_priv *priv = fe->demodulator_priv;
+@@ -172,6 +183,7 @@ static void tas2101_reg_i2c_write(struct dvb_frontend *fe,struct usbi2c_access *
+ 		priv->cfg->i2cwrite_properties(adapter,pi2cinf->chip_addr,pi2cinf->reg, pi2cinf->num, pi2cinf->buf);
+ 	return ;
+ }
++#endif
+ 
+ static int tas2101_set_voltage(struct dvb_frontend *fe,
+ 	enum fe_sec_voltage voltage)
+@@ -453,12 +465,12 @@ static struct dvb_frontend_ops tas2101_ops = {
+ 	.set_frontend = tas2101_set_frontend,
+ 	.get_frontend = tas2101_get_frontend,
+ 
+-	.spi_read			= tas2101_spi_read,
+-	.spi_write			= tas2101_spi_write,
+-	.mcu_read			= tas2101_mcu_read,
+-	.mcu_write			= tas2101_mcu_write,
+-	.reg_i2cread			= tas2101_reg_i2c_read,
+-	.reg_i2cwrite			= tas2101_reg_i2c_write,
++	// .spi_read			= tas2101_spi_read,
++	// .spi_write			= tas2101_spi_write,
++	// .mcu_read			= tas2101_mcu_read,
++	// .mcu_write			= tas2101_mcu_write,
++	// .reg_i2cread			= tas2101_reg_i2c_read,
++	// .reg_i2cwrite			= tas2101_reg_i2c_write,
+ 
+ };
+ 
+diff --git a/drivers/media/dvb-frontends/tbs_priv.c b/drivers/media/dvb-frontends/tbs_priv.c
+index cbf5e17..58a0058 100644
+--- a/drivers/media/dvb-frontends/tbs_priv.c
++++ b/drivers/media/dvb-frontends/tbs_priv.c
+@@ -73,6 +73,7 @@ static int tbs_init(struct dvb_frontend *fe)
+ 	return 0;
+ }
+ 
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tbs_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ {
+ 
+@@ -83,6 +84,8 @@ static void tbs_spi_read(struct dvb_frontend *fe, struct ecp3_info *ecp3inf)
+ 
+ 	return;
+ }
++#endif
++#if 0 /* TBS dvb-core extension — type not in mainline */
+ static void tbs_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ {
+ 	struct tbs_dev *priv = fe->demodulator_priv;
+@@ -92,6 +95,7 @@ static void tbs_spi_write(struct dvb_frontend *fe,struct ecp3_info *ecp3inf)
+ 
+ 	return ;
+ }
++#endif
+ static int tbs_set_tone(struct dvb_frontend *fe,
+ 	enum fe_sec_tone_mode tone)
+ {
+@@ -172,8 +176,8 @@ static struct dvb_frontend_ops tbs_ops = {
+ 	.set_tone = tbs_set_tone,
+ 	.set_voltage = tbs_set_voltage,
+ 
+-	.spi_read			= tbs_spi_read,
+-	.spi_write			= tbs_spi_write,
++	// .spi_read			= tbs_spi_read,
++	// .spi_write			= tbs_spi_write,
+ 
+ 
+ };

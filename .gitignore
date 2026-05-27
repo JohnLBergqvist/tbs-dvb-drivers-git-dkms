@@ -1,0 +1,16 @@
+# Kernel module build artifacts (Kbuild output under src/)
+*.o
+*.ko
+*.mod
+*.mod.c
+.*.cmd
+*.symvers
+modules.order
+
+# Build stamp written by Makefile's `patch` target
+src/.patches-applied
+
+# patch(1) byproducts
+*.orig
+*.rej
+*.patch.new

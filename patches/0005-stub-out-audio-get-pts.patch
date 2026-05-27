@@ -1,0 +1,33 @@
+Subject: [PATCH] Wrap AUDIO_GET_PTS use in #ifdef
+
+The AUDIO_GET_PTS ioctl was removed from mainline Linux. saa716x_ff_main.c
+still references it in a switch case for the legacy DVB audio device
+interface. Out-of-tree builds against modern mainline fail with:
+
+    error: 'AUDIO_GET_PTS' undeclared
+
+Wrap the case statement in #ifdef AUDIO_GET_PTS so it compiles out on
+kernels where the ioctl no longer exists. The switch falls through to
+the default branch returning -ENOIOCTLCMD, which is the correct behavior
+for an unsupported ioctl.
+
+Affects 1 file: drivers/media/pci/saa716x/saa716x_ff_main.c.
+---
+diff --git a/drivers/media/pci/saa716x/saa716x_ff_main.c b/drivers/media/pci/saa716x/saa716x_ff_main.c
+index a013aee..659e536 100644
+--- a/drivers/media/pci/saa716x/saa716x_ff_main.c
++++ b/drivers/media/pci/saa716x/saa716x_ff_main.c
+@@ -427,11 +427,13 @@ static int do_dvb_audio_ioctl(struct dvb_device *dvbdev,
+ 	int ret = 0;
+ 
+ 	switch (cmd) {
++#ifdef AUDIO_GET_PTS
+ 	case AUDIO_GET_PTS:
+ 	{
+ 		*(u64 *)parg = sti7109->audio_pts;
+ 		break;
+ 	}
++#endif
+ 	default:
+ 		ret = -ENOIOCTLCMD;
+ 		break;

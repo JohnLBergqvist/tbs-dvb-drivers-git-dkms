@@ -1,0 +1,182 @@
+Subject: [PATCH] Port saa716x_ff_ir.c to modern kernel timer API
+
+The Linux kernel's timer API has changed twice since the saa716x_ff IR
+driver was written:
+
+  4.14: init_timer() removed in favour of timer_setup(); struct
+        timer_list lost its .data and .function (old signature)
+        members. Out-of-tree builds against post-4.14 mainline fail
+        with "implicit declaration of function 'init_timer'" and
+        "struct timer_list has no member named 'data'".
+
+  6.16: from_timer() renamed to timer_container_of();
+        del_timer_sync() renamed to timer_delete_sync(). Out-of-tree
+        builds against 6.16+ fail with "implicit declaration of
+        function 'from_timer'" and the same for del_timer_sync().
+
+This patch handles both:
+
+  - Pre-4.14 path: keep init_timer/add_timer + the existing
+    keyup-timer logic that gates on timer_pending().
+  - 4.14+ path: timer_setup() + a `keypressed` flag in struct
+    infrared, plus mod_timer() for the keyup deadline. Replaces the
+    bespoke repeat-key handling with input_enable_softrepeat() (the
+    documented modern alternative).
+  - 6.16+ shim: #define from_timer/del_timer_sync as their renamed
+    counterparts so the 4.14+ branch builds unchanged on both
+    6.15- and 6.16+. Cleaner than peppering every call site with
+    another version check.
+
+Also gates `ir_repeat_key` and the `input_dev->timer.function/.data`
+assignments under the 4.14 version check, since `struct timer_list`
+no longer has those members on 4.14+.
+
+The tasklet code stays unchanged in all branches.
+
+Affects 1 file: drivers/media/pci/saa716x/saa716x_ff_ir.c.
+---
+diff --git a/drivers/media/pci/saa716x/saa716x_ff_ir.c b/drivers/media/pci/saa716x/saa716x_ff_ir.c
+index 3562478..a6bfa6a 100644
+--- a/drivers/media/pci/saa716x/saa716x_ff_ir.c
++++ b/drivers/media/pci/saa716x/saa716x_ff_ir.c
+@@ -28,6 +28,18 @@
+ #include "saa716x_ff.h"
+
+
++/*
++ * Kernel 6.16 renamed from_timer() -> timer_container_of() and
++ * del_timer_sync() -> timer_delete_sync(). Alias the old names so the
++ * 4.14+ branch below builds unchanged on both 6.15- and 6.16+.
++ */
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,16,0)
++#define from_timer(var, callback_timer, timer_fieldname) \
++	timer_container_of(var, callback_timer, timer_fieldname)
++#define del_timer_sync(timer) timer_delete_sync(timer)
++#endif
++
++
+ /* infrared remote control */
+ struct infrared {
+ 	u16			key_map[128];
+@@ -35,6 +47,9 @@ struct infrared {
+ 	char			input_phys[32];
+ 	struct timer_list	keyup_timer;
+ 	struct tasklet_struct	tasklet;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,14,0)
++	bool                    keypressed;
++#endif
+ 	u32			command;
+ 	u32			device_mask;
+ 	u8			protocol;
+@@ -48,6 +63,7 @@ struct infrared {
+
+
+ /* key-up timer */
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+ static void ir_emit_keyup(unsigned long parm)
+ {
+ 	struct infrared *ir = (struct infrared *) parm;
+@@ -58,6 +74,18 @@ static void ir_emit_keyup(unsigned long parm)
+ 	input_report_key(ir->input_dev, ir->last_key, 0);
+ 	input_sync(ir->input_dev);
+ }
++#else
++static void ir_emit_keyup(struct timer_list *t)
++{
++	struct infrared *ir = from_timer(ir, t, keyup_timer);
++	if (!ir || !ir->keypressed)
++		return;
++
++	input_report_key(ir->input_dev, ir->last_key, 0);
++	input_sync(ir->input_dev);
++	ir->keypressed = false;
++}
++#endif
+
+
+ /* tasklet */
+@@ -114,6 +142,7 @@ static void ir_emit_key(unsigned long parm)
+ 		return;
+ 	}
+
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+ 	if (timer_pending(&ir->keyup_timer)) {
+ 		del_timer(&ir->keyup_timer);
+ 		if (ir->last_key != keycode || toggle != ir->last_toggle) {
+@@ -130,13 +159,26 @@ static void ir_emit_key(unsigned long parm)
+ 		input_event(ir->input_dev, EV_KEY, keycode, 1);
+ 		input_sync(ir->input_dev);
+ 	}
++#else
++	if (ir->keypressed &&
++	    (ir->last_key != keycode || toggle != ir->last_toggle))
++		input_event(ir->input_dev, EV_KEY, ir->last_key, 0);
++
++	input_event(ir->input_dev, EV_KEY, keycode, 1);
++	input_sync(ir->input_dev);
++
++	ir->keypressed = true;
++#endif
+
+ 	ir->last_key = keycode;
+ 	ir->last_toggle = toggle;
+
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+ 	ir->keyup_timer.expires = jiffies + UP_TIMEOUT;
+ 	add_timer(&ir->keyup_timer);
+-
++#else
++	mod_timer(&ir->keyup_timer, jiffies + UP_TIMEOUT);
++#endif
+ }
+
+
+@@ -167,6 +209,7 @@ static void ir_register_keys(struct infrared *ir)
+ }
+
+
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+ /* called by the input driver after rep[REP_DELAY] ms */
+ static void ir_repeat_key(unsigned long parm)
+ {
+@@ -174,6 +217,7 @@ static void ir_repeat_key(unsigned long parm)
+
+ 	ir->delay_timer_finished = true;
+ }
++#endif
+
+
+ /* interrupt handler */
+@@ -203,9 +247,13 @@ int saa716x_ir_init(struct saa716x_dev *saa716x)
+ 	if (!ir)
+ 		return -ENOMEM;
+
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+ 	init_timer(&ir->keyup_timer);
+ 	ir->keyup_timer.function = ir_emit_keyup;
+ 	ir->keyup_timer.data = (unsigned long) ir;
++#else
++	timer_setup(&ir->keyup_timer, ir_emit_keyup, 0);
++#endif
+
+ 	input_dev = input_allocate_device();
+ 	if (!input_dev)
+@@ -236,9 +284,18 @@ int saa716x_ir_init(struct saa716x_dev *saa716x)
+ 		ir->key_map[i] = i+1;
+ 	ir_register_keys(ir);
+
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,14,0)
+ 	/* override repeat timer */
+ 	input_dev->timer.function = ir_repeat_key;
+ 	input_dev->timer.data = (unsigned long) ir;
++#else
++	/*
++	 * Input core's default autorepeat is 33 cps with 250 msec
++	 * delay, let's adjust to numbers more suitable for remote
++	 * control.
++	 */
++	input_enable_softrepeat(input_dev, 250, 125);
++#endif
+
+ 	tasklet_init(&ir->tasklet, ir_emit_key, (unsigned long) saa716x);
+ 	saa716x->ir_priv = ir;
