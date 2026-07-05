@@ -116,7 +116,7 @@ if [ -z "$VANILLA_BASE" ]; then
                 /^VERSION = / && !v {v=$3}
                 /^PATCHLEVEL = / && !p {p=$3}
                 /^SUBLEVEL = / && !s {s=$3}
-                /^EXTRAVERSION = / && !e {e=$3; exit}
+                /^EXTRAVERSION = / && !e {e=$3}
                 END {print v"|"p"|"s"|"e}
             ') || continue
             if [ "$vals" = "$TARGET_V|$TARGET_P|$TARGET_S|$TARGET_E" ]; then
