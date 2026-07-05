@@ -1,3 +1,3 @@
-4bf556a6bcf1154c5178f6bf15ef3094851c2f34
-2026-01-21 16:37:14 +0800
-fixed the 6916 setting
+56475126e2a01ea917463fee2d360618daa52361
+2026-07-02 12:14:54 +0800
+add a new 32 bits reg struct for tbsmod ioctl
