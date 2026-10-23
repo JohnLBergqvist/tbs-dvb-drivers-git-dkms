@@ -71,6 +71,11 @@ else
     exit 1
 fi
 
+# Check out the resolved commit. `fetch` alone doesn't touch the cache's
+# working tree, and everything below reads files from it ($CACHE_DIR/<path>),
+# so without this we'd copy whatever was checked out last time.
+git -C "$CACHE_DIR" checkout --quiet --detach "$RESOLVED_SHA"
+
 UPSTREAM_DATE=$(git -C "$CACHE_DIR" show -s --format=%ci "$RESOLVED_SHA")
 UPSTREAM_SUBJECT=$(git -C "$CACHE_DIR" log -1 --format=%s "$RESOLVED_SHA")
 
