@@ -82,12 +82,22 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
 
-      # For Claude's test builds. The authoritative builds run in build.yml.
-      - name: Install kernel headers
+      # For Claude's test builds: an Arch container with linux-lts headers, as
+      # in build.yml (Ubuntu's header packages lack the DVB-internal headers
+      # these drivers include). The authoritative builds run in build.yml.
+      # $RUNNER_TEMP/arch-make runs make in it as the runner user, on the
+      # workspace mounted at the same path.
+      - name: Start Arch build container
         if: steps.check.outputs.changed == 'true'
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y -q "linux-headers-$(uname -r)"
+          docker run -d --name archbuild -v "$GITHUB_WORKSPACE:$GITHUB_WORKSPACE" archlinux:latest sleep infinity
+          docker exec archbuild bash -c 'pacman -Sy --noconfirm archlinux-keyring && pacman -Su --noconfirm --needed base-devel pahole linux-lts-headers'
+          cat > "$RUNNER_TEMP/arch-make" <<'EOF'
+          #!/bin/bash
+          exec docker exec -u "$(id -u):$(id -g)" -w "$PWD" archbuild \
+            bash -c 'make KERNELDIR="$(echo /usr/lib/modules/*/build)" "$@"' make "$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/arch-make"
 
       - name: Run sync-upstream.sh
         id: sync
@@ -136,11 +146,12 @@ jobs:
           1. For each patch the script reports as no longer applying: if it
              reverse-applies cleanly (upstream already made the change), delete it.
              Otherwise refresh it as README.md describes.
-          2. Run make to test-build against this runner's kernel headers. Fix any
-             failures. If upstream added a struct, enum value or ioctl to a header
-             we don't sync, add it to src/frontend_extra.h.
-          3. Run make clean afterwards, and make sure git status shows no build
-             artifacts.
+          2. Test-build with $RUNNER_TEMP/arch-make (not plain make): it runs make
+             in an Arch Linux container against the linux-lts headers, as CI does.
+             Fix any failures. If upstream added a struct, enum value or ioctl to a
+             header we don't sync, add it to src/frontend_extra.h.
+          3. Run $RUNNER_TEMP/arch-make clean afterwards, and make sure git status
+             shows no build artifacts.
           4. Keep README.md and comments in sync with what you changed.
 
           Rules:
@@ -154,7 +165,9 @@ jobs:
           - Finally, write a pull request description in Markdown to
             $RUNNER_TEMP/pr-body.md: a short summary of the upstream changes, what
             you changed and why, and anything you're unsure of that a human
-            should check.
+            should check. After you finish, the workflow builds the branch against
+            Arch linux-lts and linux and appends the results to the PR, so don't
+            ask a human to confirm the CI builds.
           EOF
           )
           claude -p "$prompt" \
