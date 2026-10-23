@@ -455,6 +455,110 @@ ccflags-y += -Wno-switch
 EOF
 
 # ---------------------------------------------------------------------------
+# Regenerate TBS-only enum values in src/frontend_extra.h
+# ---------------------------------------------------------------------------
+# TBS's fork of include/uapi/linux/dvb/frontend.h (a header we don't sync)
+# extends enum fe_code_rate and enum fe_modulation with DVB-S2X values that
+# stock kernels lack. frontend_extra.h #defines them, with TBS's numbers, in
+# a section between AUTO-GENERATED markers that we rewrite here.
+#
+# A value is TBS-only if its name isn't in the vanilla base's enum. Using
+# TBS's numbers is only safe if every stock value keeps its stock number in
+# TBS's enum and all TBS-only values come after the stock maximum. If not,
+# warn and leave the section alone for a human to sort out.
+#
+# TBS_ENUMS lists the enums handled. If TBS extends another enum in
+# frontend.h, add its name here and re-run; don't hand-write the values.
+# (Only for enums numbered 0, 1, 2…; flag enums with hex values are rejected.)
+TBS_ENUMS=(fe_modulation fe_code_rate)
+
+# Print "NAME VALUE" for each member of enum $2 in frontend.h at revision $1.
+enum_members() {
+    git -C "$CACHE_DIR" show "$1:include/uapi/linux/dvb/frontend.h" | awk -v name="$2" '
+        $0 ~ "^enum " name "[[:space:]]*[{]" { inside = 1; n = 0; next }
+        !inside { next }
+        /^};/ { exit }
+        {
+            gsub(/\/\*.*\*\//, ""); sub(/\/\/.*/, ""); gsub(/[[:space:]]/, "")
+            count = split($0, items, ",")
+            for (i = 1; i <= count; i++) {
+                if (items[i] == "") continue
+                if (split(items[i], kv, "=") == 2) {
+                    # Only plain numbers are understood; anything else fails
+                    # the name check in enum_defines.
+                    if (kv[2] !~ /^[0-9]+$/) { print "?" items[i], 0; continue }
+                    n = kv[2] + 0
+                }
+                print kv[1], n++
+            }
+        }'
+}
+
+# Print the #define block for enum $1's TBS-only values, or fail with a
+# message on stderr if TBS's numbering isn't compatible with the stock one.
+enum_defines() {
+    local enum="$1" name val max=-1 max_name="" out=""
+    local -A stock=()
+    while read -r name val; do
+        stock[$name]=$val
+        if [ "$val" -gt "$max" ]; then max=$val; max_name=$name; fi
+    done < <(enum_members "$VANILLA_BASE" "$enum")
+    if [ "$max" -lt 0 ]; then
+        echo "enum $enum not found in vanilla frontend.h" >&2; return 1
+    fi
+
+    local seen=0
+    while read -r name val; do
+        seen=1
+        if [[ ! "$name" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+            echo "can't parse member '$name' of TBS's enum $enum" >&2; return 1
+        fi
+        if [ -n "${stock[$name]+set}" ]; then
+            if [ "${stock[$name]}" != "$val" ]; then
+                echo "TBS numbers $name as $val, the stock kernel as ${stock[$name]}" >&2; return 1
+            fi
+        elif [ "$val" -le "$max" ]; then
+            echo "TBS-only $name = $val collides with stock values (stock maximum $max_name = $max)" >&2; return 1
+        else
+            printf -v out '%s#ifndef %s\n#define %-11s %d\n#endif\n' "$out" "$name" "$name" "$val"
+        fi
+    done < <(enum_members "$RESOLVED_SHA" "$enum")
+    if [ "$seen" -eq 0 ]; then
+        echo "enum $enum not found in TBS's frontend.h" >&2; return 1
+    fi
+
+    printf '/* enum %s: TBS-only values (stock maximum: %s = %d) */\n%s' "$enum" "$max_name" "$max" "$out"
+}
+
+# Print the #define blocks for every enum in TBS_ENUMS, or fail.
+all_enum_defines() {
+    local enum block sep=""
+    for enum in "${TBS_ENUMS[@]}"; do
+        block=$(enum_defines "$enum") || return 1
+        printf '%s%s\n' "$sep" "$block"
+        sep=$'\n'
+    done
+}
+
+EXTRA_H="$SRC_DIR/frontend_extra.h"
+echo "==> Regenerating TBS enum values in src/frontend_extra.h"
+if ! grep -q 'BEGIN AUTO-GENERATED TBS ENUM VALUES' "$EXTRA_H" 2>/dev/null; then
+    echo "WARNING: no AUTO-GENERATED TBS ENUM VALUES section in src/frontend_extra.h; not updated."
+elif enum_block=$(all_enum_defines 2>"$EXTRA_H.err"); then
+    awk -v block="$enum_block" '
+        /BEGIN AUTO-GENERATED TBS ENUM VALUES/ { print; print block; skip = 1; next }
+        /END AUTO-GENERATED TBS ENUM VALUES/ { skip = 0 }
+        !skip { print }
+    ' "$EXTRA_H" > "$EXTRA_H.tmp"
+    mv "$EXTRA_H.tmp" "$EXTRA_H"
+else
+    echo "WARNING: couldn't regenerate the TBS enum values in src/frontend_extra.h:"
+    sed 's/^/  /' "$EXTRA_H.err"
+    echo "src/frontend_extra.h's TBS enum values were left unchanged; review them by hand."
+fi
+rm -f "$EXTRA_H.err"
+
+# ---------------------------------------------------------------------------
 # Write UPSTREAM_VERSION
 # ---------------------------------------------------------------------------
 cat > "$REPO_ROOT/UPSTREAM_VERSION" <<EOF
