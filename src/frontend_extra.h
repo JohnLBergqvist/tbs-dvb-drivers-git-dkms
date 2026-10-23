@@ -121,40 +121,43 @@ struct eeprom_info {
  */
 /* BEGIN AUTO-GENERATED TBS ENUM VALUES */
 /* enum fe_modulation: TBS-only values (stock maximum: APSK_64_L = 20) */
-#ifndef APSK_128
-#define APSK_128    21
+#ifndef QAM_512
+#define QAM_512     21
 #endif
-#ifndef APSK_128_L
-#define APSK_128_L  22
+#ifndef APSK_128
+#define APSK_128    22
 #endif
 #ifndef APSK_256
 #define APSK_256    23
 #endif
+#ifndef APSK_128_L
+#define APSK_128_L  24
+#endif
 #ifndef APSK_256_L
-#define APSK_256_L  24
+#define APSK_256_L  25
 #endif
 #ifndef APSK_1024
-#define APSK_1024   25
+#define APSK_1024   26
 #endif
 
 /* enum fe_code_rate: TBS-only values (stock maximum: FEC_7_15 = 32) */
 #ifndef FEC_29_45
-#define FEC_29_45  33
+#define FEC_29_45   33
 #endif
 #ifndef FEC_31_45
-#define FEC_31_45  34
+#define FEC_31_45   34
 #endif
 #ifndef FEC_R_58
-#define FEC_R_58   35
-#endif
-#ifndef FEC_R_5E
-#define FEC_R_5E   36
+#define FEC_R_58    35
 #endif
 #ifndef FEC_R_60
-#define FEC_R_60   37
+#define FEC_R_60    36
 #endif
 #ifndef FEC_R_62
-#define FEC_R_62   38
+#define FEC_R_62    37
+#endif
+#ifndef FEC_R_5E
+#define FEC_R_5E    38
 #endif
 /* END AUTO-GENERATED TBS ENUM VALUES */
 
