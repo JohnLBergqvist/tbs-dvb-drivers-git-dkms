@@ -538,19 +538,19 @@ static int stid135_get_frontend(struct dvb_frontend *fe, struct dtv_frontend_pro
 		p->modulation = APSK_1024;
 		break;
 	case FE_SAT_MOD_8PSK_L:
-		p->modulation = APSK_8_L;
+		p->modulation = APSK_8L;
 		break;
 	case FE_SAT_MOD_16APSK_L:
-		p->modulation = APSK_16_L;
+		p->modulation = APSK_16L;
 		break;
 	case FE_SAT_MOD_32APSK_L:
-		p->modulation = APSK_32_L;
+		p->modulation = APSK_32L;
 		break;
 	case FE_SAT_MOD_64APSK_L:
-		p->modulation = APSK_64_L;
+		p->modulation = APSK_64L;
 		break;
 	case FE_SAT_MOD_256APSK_L:
-		p->modulation = APSK_256_L;
+		p->modulation = APSK_256L;
 		break;
 	case FE_SAT_MOD_QPSK:
 	default:

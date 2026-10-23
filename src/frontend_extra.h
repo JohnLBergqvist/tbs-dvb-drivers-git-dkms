@@ -9,8 +9,8 @@
  * SCOPE
  * -----
  * Define only values that don't exist in any stock kernel header.
- * Naming inconsistencies between TBS and kernel enum names are resolved by
- * patches in patches/, not here.
+ * Naming inconsistencies (e.g. TBS's APSK_8L vs the kernel's APSK_8_L) are
+ * resolved by patches in patches/, not here.
  *
  * VALUES
  * ------
