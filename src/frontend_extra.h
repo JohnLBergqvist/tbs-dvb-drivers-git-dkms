@@ -9,30 +9,27 @@
  * SCOPE
  * -----
  * Define only values that don't exist in any stock kernel header.
- * Naming inconsistencies (e.g. TBS's APSK_8L vs the kernel's APSK_8_L) are
- * resolved by patches in patches/, not here.
+ * Naming inconsistencies with stock kernel headers are resolved by patches
+ * in patches/, not here.
  *
  * VALUES
  * ------
- * The numeric values below DO NOT match TBS's own kernel header
- * (tbsdtv/linux_media include/uapi/linux/dvb/frontend.h), because TBS
- * reordered enum fe_code_rate and enum fe_modulation in their kernel.
- * For example TBS has FEC_29_45 = 31, but stock kernel uses position 31
- * for FEC_4_15. We can't match TBS's values without colliding with
- * existing stock kernel values that drivers also reference.
- *
- * Instead, we assign values STRICTLY ABOVE the stock kernel's maximum
- * enum value (FEC_7_15 = 32 for fe_code_rate, APSK_64_L = 20 for
- * fe_modulation). This guarantees no collision with stock values.
+ * The numeric values below match TBS's own kernel header
+ * (tbsdtv/linux_media include/uapi/linux/dvb/frontend.h). Since upstream
+ * commit 8bb85e2b107e ("Reorganize FEC and APSK enumerations in
+ * frontend.h"), TBS's enum fe_code_rate and enum fe_modulation are a strict
+ * superset of the stock kernel's: every stock value keeps its stock number
+ * and the TBS additions follow the stock maximum (FEC_7_15 = 32 for
+ * fe_code_rate, APSK_64_L = 20 for fe_modulation). So we can use TBS's
+ * numbers without colliding with any stock value.
  *
  * Userspace consequences:
- *   - DVB-aware tools recompiled against the stock kernel will see these
- *     as "unknown enum value" rather than a wrong-but-valid value.
- *     This is the safer failure mode.
- *   - TBS-aware userspace tools (built with TBS's kernel headers) will
- *     see different numeric values than us — but in practice, those tools
- *     read the symbolic name via libdvbv5 lookup tables, not raw integers.
+ *   - DVB-aware tools built against the stock kernel will see these as
+ *     "unknown enum value" rather than a wrong-but-valid value.
+ *   - TBS-aware userspace tools (built with TBS's kernel headers) see the
+ *     same numeric values as these drivers report.
  *
+ * If TBS reorders these enums again, update the values here to match.
  * If a future stock kernel adds these values, the matching definitions
  * here become redundant (the #ifndef guards make them harmless).
  */
@@ -111,28 +108,31 @@ struct eeprom_info {
 #endif
 
 /*
- * Modulation values used by DVB-S2X drivers, missing from stock
- * <linux/dvb/frontend.h>. Assigned values 21+ (stock max APSK_64_L = 20).
+ * Modulation values missing from stock <linux/dvb/frontend.h>.
+ * Values 21+ (stock max APSK_64_L = 20), in TBS's order.
  */
-#ifndef APSK_128
-#define APSK_128    21
+#ifndef QAM_512
+#define QAM_512     21
 #endif
-#ifndef APSK_128_L
-#define APSK_128_L  22
+#ifndef APSK_128
+#define APSK_128    22
 #endif
 #ifndef APSK_256
 #define APSK_256    23
 #endif
+#ifndef APSK_128_L
+#define APSK_128_L  24
+#endif
 #ifndef APSK_256_L
-#define APSK_256_L  24
+#define APSK_256_L  25
 #endif
 #ifndef APSK_1024
-#define APSK_1024   25
+#define APSK_1024   26
 #endif
 
 /*
- * FEC code rates used by DVB-S2X, missing from stock kernel.
- * Assigned values 33+ (stock max FEC_7_15 = 32).
+ * FEC code rates missing from the stock kernel.
+ * Values 33+ (stock max FEC_7_15 = 32), in TBS's order.
  *
  * The FEC_R_* values are TBS-specific raw numeric encodings used by some
  * frontends (mxl58x, m88rs6060, stid135) — they map to internal chip
@@ -147,14 +147,14 @@ struct eeprom_info {
 #ifndef FEC_R_58
 #define FEC_R_58   35
 #endif
-#ifndef FEC_R_5E
-#define FEC_R_5E   36
-#endif
 #ifndef FEC_R_60
-#define FEC_R_60   37
+#define FEC_R_60   36
 #endif
 #ifndef FEC_R_62
-#define FEC_R_62   38
+#define FEC_R_62   37
+#endif
+#ifndef FEC_R_5E
+#define FEC_R_5E   38
 #endif
 
 #endif /* _FRONTEND_EXTRA_H_ */

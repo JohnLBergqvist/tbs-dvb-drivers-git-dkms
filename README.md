@@ -73,8 +73,6 @@ Current patches:
   `.set_property`, etc.) and stub the corresponding implementations.
 - `0002-stub-out-DTV_MODCODE-usage.patch` — gate `c->modcode` /
   `MODCODE_ALL` references on `#ifdef DTV_MODCODE` (TBS-only enum).
-- `0003-rename-apsk-enum-references.patch` — `APSK_8L` → `APSK_8_L`
-  etc., matching mainline enum names.
 - `0004-remove-unused-dvb_math-include.patch` — drop unused
   `<media/dvb_math.h>` include from `m88rs6060.c`.
 - `0005-stub-out-audio-get-pts.patch` — wrap removed `AUDIO_GET_PTS`
