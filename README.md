@@ -113,6 +113,22 @@ files to sync. Regenerates `src/Kbuild` and the module-list section of
 `dkms.conf`. Dry-runs `patches/*.patch` and reports any that no longer
 apply. Stages for review; never commits.
 
+### Automated nightly sync
+
+`.github/workflows/upstream-sync.yml` runs nightly (or on demand from the
+Actions tab). If upstream's `latest` branch has moved past
+`UPSTREAM_VERSION`, it runs `sync-upstream.sh`, has Claude Code tidy up
+`patches/`, `src/frontend_extra.h` and this README and test-build, then
+builds the branch against Arch's kernels and opens a PR for review. Needs
+an `ANTHROPIC_API_KEY` repository secret, and "Allow GitHub Actions to
+create and approve pull requests" enabled under Settings → Actions.
+
+### CI builds
+
+`.github/workflows/build.yml` builds the modules in an Arch Linux
+container against the `linux-lts` and `linux` kernel headers, on every PR
+and push to `main` (and for each nightly sync branch).
+
 ## Supported kernels
 
 `^[67]\.` — verified on 6.x and 7.x. Set in `dkms.conf` via

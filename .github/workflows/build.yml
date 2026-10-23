@@ -1,0 +1,63 @@
+# Build the modules against Arch Linux kernel headers, the way the AUR
+# package's DKMS install does. Only headers are needed, not a running kernel.
+#
+#   linux-lts  — Arch's LTS kernel
+#   linux      — Arch's current stable kernel (catches upcoming breakage)
+#
+# Runs on PRs and pushes to main, and is called by upstream-sync.yml on its
+# sync branch before it opens a PR (PRs opened by a workflow's GITHUB_TOKEN
+# don't trigger other workflows, so it can't rely on the pull_request event).
+
+name: Build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Branch or commit to build
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.kernel }})
+    runs-on: ubuntu-26.04
+    container: archlinux:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kernel: [linux-lts, linux]
+    steps:
+      # Refresh the keyring first: the image's keys can lag behind the
+      # packagers' and pacman then rejects package signatures.
+      - name: Install build dependencies
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Su --noconfirm --needed base-devel git pahole "${{ matrix.kernel }}-headers"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Build
+        run: |
+          kdirs=(/usr/lib/modules/*/build)
+          if [ "${#kdirs[@]}" -ne 1 ] || [ ! -d "${kdirs[0]}" ]; then
+            echo "::error::Expected exactly one kernel headers tree, found: ${kdirs[*]}"
+            exit 1
+          fi
+          kver=$(basename "$(dirname "${kdirs[0]}")")
+          echo "Building against ${{ matrix.kernel }} $kver"
+          make KERNELDIR="${kdirs[0]}"
+          echo "✅ Built against ${{ matrix.kernel }} $kver" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean
+        run: make KERNELDIR="$(echo /usr/lib/modules/*/build)" clean
