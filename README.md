@@ -109,8 +109,10 @@ If `sync-upstream.sh` reports a patch no longer applies:
 The script auto-detects which mainline kernel TBS forked from (by
 matching their Makefile's VERSION/PATCHLEVEL/SUBLEVEL/EXTRAVERSION
 against ancestors), then `git diff`'s vanilla → TBS to discover which
-files to sync. Regenerates `src/Kbuild` and the module-list section of
-`dkms.conf`. Dry-runs `patches/*.patch` and reports any that no longer
+files to sync. Regenerates `src/Kbuild`, the module-list section of
+`dkms.conf`, and the TBS-only enum values in `src/frontend_extra.h`
+(copied with TBS's numbers from its `frontend.h`; the script warns instead
+if TBS's numbering ever stops being compatible with the stock kernel's). Dry-runs `patches/*.patch` and reports any that no longer
 apply. Stages for review; never commits.
 
 ### Automated nightly sync

@@ -13,7 +13,7 @@ $(STAMP):
 	@if [ -d "$(PATCHDIR)" ] && ls "$(PATCHDIR)"/*.patch >/dev/null 2>&1; then \
 	    for p in $$(ls "$(PATCHDIR)"/*.patch | sort); do \
 	        echo "Applying $$(basename $$p)"; \
-	        (cd "$(SRC)" && patch -p1 --silent < "$$p") || exit 1; \
+	        (cd "$(SRC)" && patch -p1 --silent --no-backup-if-mismatch < "$$p") || exit 1; \
 	    done; \
 	fi
 	@touch "$(STAMP)"
@@ -23,7 +23,7 @@ clean:
 	@if [ -f "$(STAMP)" ]; then \
 	    for p in $$(ls "$(PATCHDIR)"/*.patch | sort -r); do \
 	        echo "Reverting $$(basename $$p)"; \
-	        (cd "$(SRC)" && patch -p1 -R --silent < "$$p") || true; \
+	        (cd "$(SRC)" && patch -p1 -R --silent --no-backup-if-mismatch < "$$p") || true; \
 	    done; \
 	    rm -f "$(STAMP)"; \
 	fi
