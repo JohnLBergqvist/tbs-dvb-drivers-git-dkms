@@ -106,6 +106,7 @@ jobs:
           NEW_SHA: ${{ steps.check.outputs.new_sha }}
           BRANCH: ${{ steps.check.outputs.branch }}
         run: |
+          set -o pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
@@ -170,10 +171,28 @@ jobs:
             ask a human to confirm the CI builds.
           EOF
           )
+          # Stream Claude's actions into the log as they happen, filtered to
+          # its messages, the tools it calls, tool errors and a final summary.
+          set -o pipefail
           claude -p "$prompt" \
             --allowedTools "Read,Edit,Write,Glob,Grep,Bash" \
             --add-dir "$RUNNER_TEMP" "$CACHE_DIR" \
-            --max-budget-usd 5
+            --max-budget-usd 5 \
+            --output-format stream-json --verbose < /dev/null \
+          | jq -r --unbuffered '
+              if .type == "assistant" then
+                .message.content[]
+                | if .type == "text" then "💬 " + .text
+                  elif .type == "tool_use" then
+                    "🔧 " + .name + ": " + ((.input.command // .input.file_path // .input.pattern // "") | tostring | split("\n")[0])
+                  else empty end
+              elif .type == "user" then
+                .message.content[]? | select(.type? == "tool_result" and .is_error == true)
+                | "   ⚠️ tool error: " + (.content | tostring | split("\n")[0])
+              elif .type == "result" then
+                (if .is_error then "❌" else "✅" end)
+                + " Claude finished (\(.subtype)): \(.num_turns) turns, $\(.total_cost_usd * 100 | round / 100)"
+              else empty end'
 
       - name: Check results and push branch
         if: steps.check.outputs.changed == 'true'
