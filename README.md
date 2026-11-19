@@ -137,6 +137,12 @@ and push to `main` (and for each nightly sync branch).
 `BUILD_EXCLUSIVE_KERNEL_VERSION`; tighten the regex to fail-fast on
 unsupported kernels.
 
+Builds against both Arch's kernel headers and Debian-family header
+packages (Debian/Ubuntu `linux-headers-*`, Proxmox `proxmox-headers-*`).
+The latter don't ship drivers/media's private headers, so the few we
+need (`tuner-i2c.h`, `tda827x.h`, `tda8290.h`, `tda18271.h`) are vendored
+by `patches/0007-vendor-mainline-tuner-headers.patch`.
+
 ## License
 
 GPL-2.0. See `LICENSE`. Driver source files retain their individual
