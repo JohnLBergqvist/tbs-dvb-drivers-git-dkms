@@ -59,6 +59,13 @@ that their bridge drivers depend on. We ship TBS-modified versions of
 these as full modules; DKMS installs them to `/extra/dkms/`, overriding
 the kernel's vanilla copies at module-load time.
 
+DKMS 3.x also *moves* the kernel's same-named modules out of
+`/lib/modules/<kver>/kernel/` into its `original_module` archive on
+install, which breaks the kernel package's file list (`dpkg --verify`,
+`pacman -Qkk`). The `POST_INSTALL` hook `restore-original-modules.sh`
+copies them back; ours still win because DKMS's install dir is searched
+first. `dkms uninstall` keeps working as before.
+
 ## Patches
 
 The `patches/` directory contains the minimum-viable set of changes
@@ -136,6 +143,12 @@ and push to `main` (and for each nightly sync branch).
 `^[67]\.` — verified on 6.x and 7.x. Set in `dkms.conf` via
 `BUILD_EXCLUSIVE_KERNEL_VERSION`; tighten the regex to fail-fast on
 unsupported kernels.
+
+Builds against both Arch's kernel headers and Debian-family header
+packages (Debian/Ubuntu `linux-headers-*`, Proxmox `proxmox-headers-*`).
+The latter don't ship drivers/media's private headers, so the few we
+need (`tuner-i2c.h`, `tda827x.h`, `tda8290.h`, `tda18271.h`) are vendored
+by `patches/0007-vendor-mainline-tuner-headers.patch`.
 
 ## License
 
