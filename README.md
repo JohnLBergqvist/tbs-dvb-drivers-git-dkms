@@ -59,6 +59,13 @@ that their bridge drivers depend on. We ship TBS-modified versions of
 these as full modules; DKMS installs them to `/extra/dkms/`, overriding
 the kernel's vanilla copies at module-load time.
 
+DKMS 3.x also *moves* the kernel's same-named modules out of
+`/lib/modules/<kver>/kernel/` into its `original_module` archive on
+install, which breaks the kernel package's file list (`dpkg --verify`,
+`pacman -Qkk`). The `POST_INSTALL` hook `restore-original-modules.sh`
+copies them back; ours still win because DKMS's install dir is searched
+first. `dkms uninstall` keeps working as before.
+
 ## Patches
 
 The `patches/` directory contains the minimum-viable set of changes
