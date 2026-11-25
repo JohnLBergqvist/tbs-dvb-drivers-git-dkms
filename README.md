@@ -1,16 +1,18 @@
 # tbs-dvb-drivers-git-dkms
 
-DKMS package for TBS DVB drivers tracking
+DKMS package for TBS DVB drivers on Arch Linux tracking
 [`tbsdtv/linux_media`](https://github.com/tbsdtv/linux_media) upstream.
 
 ## What this is
 
-Out-of-tree TBS DVB driver modules, packaged for DKMS so they survive
+Out-of-tree TBS DVB driver modules, packaged for DKMS on Arch Linux so they survive
 kernel upgrades. Targets `tbsdtv/linux_media` `latest` as upstream and
 ships only the bits TBS adds on top of the mainline Linux kernel.
 
 The current snapshot is recorded in `UPSTREAM_VERSION` (commit SHA,
 date, subject).
+
+This repository only supports Arch Linux. I do not plan on supporting other Linux distributions.
 
 ## Repo layout
 
